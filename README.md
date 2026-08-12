@@ -10,23 +10,23 @@ Este projeto consiste em uma API de automação baseada no WhatsApp, desenvolvid
 
 \## Funcionalidades Principais
 
-\* \*\*Processamento Automatizado:\*\* Recebimento e gerenciamento de pedidos de clientes via WhatsApp sem intervenção humana.
+Processamento Automatizado: Recebimento e gerenciamento de pedidos de clientes via WhatsApp sem intervenção humana.
 
-\* \*\*Assistente Virtual:\*\* Fluxo de conversação estruturado para coleta de dados de entrega e confirmação de compra.
+Assistente Virtual: Fluxo de conversação estruturado para coleta de dados de entrega e confirmação de compra.
 
-\* \*\*Lembretes Preditivos:\*\* Lógica de negócio implementada para calcular o tempo médio de consumo do cliente e enviar lembretes automáticos para novas compras.
+Lembretes Preditivos: Lógica de negócio implementada para calcular o tempo médio de consumo do cliente e enviar lembretes automáticos para novas compras.
 
 
 
 \## Tecnologias Utilizadas
 
-\* \*\*Backend:\*\* Node.js
+Backend: Node.js
 
-\* \*\*Banco de Dados:\*\* PostgreSQL / SQL 
+Banco de Dados: PostgreSQL / SQL 
 
-\* \*\*Integração:\*\* API do WhatsApp
+Integração: API do WhatsApp
 
-\* \*\*Arquitetura:\*\* RESTful API
+Arquitetura: RESTFUL API
 
 
 
@@ -46,11 +46,9 @@ Este projeto consiste em uma API de automação baseada no WhatsApp, desenvolvid
 
 1\. Clone o repositório:
 
-&#x20;  ```bash
+
 
 &#x20;  git clone \[https://github.com/edu773/bot\_gas
-
-
 
 Instale as dependências:
 
