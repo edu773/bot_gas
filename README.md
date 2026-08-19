@@ -1,37 +1,78 @@
-# Assistente Virtual WhatsApp - Distribuidora (MVP SaaS)
+# Assistente Virtual WhatsApp — Distribuidora
 
-Uma prova de conceito (PoC) de um assistente virtual autônomo para o WhatsApp, focado em automatizar o atendimento e escalar as vendas de distribuidoras regionais de gás.
+MVP de atendimento automatizado via WhatsApp, utilizando **Node.js**, **Baileys** e **PostgreSQL**. O fluxo conversacional é controlado por uma máquina de estados e os dados são persistidos no banco.
 
-## Visão Geral
-Este projeto implementa uma arquitetura orientada a eventos para processar mensagens recebidas no WhatsApp e conduzir o cliente por um funil de vendas completo (escolha do produto, quantidade, endereço e forma de pagamento) sem intervenção humana. 
+## Stack
 
-## Tecnologias Utilizadas
-* **Ambiente:** Node.js
-* **Integração WhatsApp:** Biblioteca Baileys (@whiskeysockets/baileys) via WebSockets.
-* **Banco de Dados:** PostgreSQL (para persistência de estado e dados do cliente).
+* Node.js 18+
+* Baileys (`@whiskeysockets/baileys`)
+* PostgreSQL
+* `pg`
+* `dotenv`
 
-## Principais Funcionalidades e Arquitetura
-* **Máquina de Estados Finitos:** O fluxo conversacional é gerenciado por estados (`INICIO`, `ESCOLHENDO_PRODUTO`, `PAGAMENTO_TIPO`, etc.), garantindo que o bot entenda o contexto exato do cliente.
-* **Lembretes Preditivos:** Lógica de negócio implementada para calcular o tempo médio de consumo do cliente e automatizar o envio de lembretes para novas compras.
-* **Persistência em Tempo Real:** Integração com PostgreSQL para salvar o progresso do pedido e o endereço do cliente a cada etapa.
-* **Experiência do Usuário (UX):** Simulação de digitação assíncrona (`composing`) para tornar a interação mais orgânica.
+## Configuração
 
-## Como Executar e Testar Localmente
+### 1. Dependências
 
-1. **Configuração do Ambiente:**
-   - Clone o repositório e rode `npm install`.
-   - Crie um arquivo `.env` na raiz e configure sua string de conexão na variável `DATABASE_URL`.
+```bash
+npm install
+```
 
-2. **Banco de Dados:**
-   - Execute o script `node criar-tabela.js` para inicializar a estrutura no PostgreSQL.
+### 2. Variáveis de ambiente
 
-3. **Inicialização e Autenticação (WhatsApp):**
-   - Inicie o servidor com: `npm start` ou `node index.js`.
-   - Um QR Code será exibido no terminal.
-   - Abra o WhatsApp no celular que servirá como bot, vá em "Aparelhos Conectados" e escaneie o código.
+Crie `.env` na raiz:
 
-4. **Testando o Fluxo:**
-   - De outro número, envie a palavra exata "Menu" para o número do bot para acionar a automação.
+```env
+DATABASE_URL=postgresql://usuario:senha@localhost:5432/zapgas
+```
 
-## Resolução de Problemas
-* **Falha no QR Code:** Caso o QR Code expire ou a conexão falhe, apague manualmente a pasta `auth_info_baileys` e reinicie a aplicação para gerar um novo código.
+### 3. Banco de dados
+
+Crie o banco especificado em `DATABASE_URL` e execute:
+
+```bash
+node criar-tabela.js
+```
+
+### 4. Execução
+
+```bash
+node index.js
+```
+
+Na primeira execução, um QR Code será exibido no terminal. Escaneie-o em **WhatsApp → Dispositivos conectados → Conectar dispositivo**.
+
+A sessão autenticada será armazenada localmente para as próximas execuções.
+
+## Uso
+
+Após a autenticação, envie `Menu` para o número conectado ao bot.
+
+O fluxo atual contempla:
+
+```text
+Menu
+ ├─ Gás
+ └─ Água
+      ↓
+   Endereço
+      ↓
+   Pagamento
+      ↓
+  Confirmação
+```
+
+## Estrutura
+
+```text
+.
+├── index.js          # Inicialização e lógica do bot
+├── criar-tabela.js   # Inicialização do schema
+├── .env.example      # Modelo de configuração
+├── package.json
+└── README.md
+```
+
+## Observação
+
+O projeto utiliza Baileys para comunicação com o WhatsApp e, portanto, não utiliza a WhatsApp Business Platform (API oficial).

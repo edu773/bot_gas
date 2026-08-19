@@ -1,21 +1,34 @@
 require('dotenv').config();
 const { Pool } = require('pg');
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-pool.query(`
-    CREATE TABLE IF NOT EXISTS pedidos (
-        id SERIAL PRIMARY KEY,
-        cliente_telefone VARCHAR(20),
-        cliente_nome VARCHAR(100),
-        item VARCHAR(50),
-        quantidade INTEGER,
-        endereco TEXT,
-        valor_total INTEGER,
-        metodo_pagamento VARCHAR(20),
-        status VARCHAR(20) DEFAULT 'PENDENTE',
-        data_pedido TIMESTAMP DEFAULT NOW()
-    );
-`).then(() => {
-    console.log("✅ Tabela 'pedidos' criada com sucesso!");
-    process.exit();
-}).catch(err => console.error(err));
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+});
+
+const criarTabelaClientes = async () => {
+    const query = `
+        CREATE TABLE IF NOT EXISTS clientes (
+            id SERIAL PRIMARY KEY,
+            telefone VARCHAR(50) UNIQUE NOT NULL,
+            nome VARCHAR(100),
+            fase_conversa VARCHAR(50) DEFAULT 'INICIO',
+            ultimo_pedido_item VARCHAR(100),
+            temp_quantidade INT DEFAULT 0,
+            endereco TEXT,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    `;
+
+    try {
+        console.log('⏳ Conectando ao banco de dados...');
+        await pool.query(query);
+        console.log('✅ Tabela "clientes" verificada/criada com sucesso.');
+    } catch (error) {
+        console.error('❌ Erro ao criar a tabela:', error.message);
+    } finally {
+        await pool.end();
+        console.log('🔌 Conexão com o banco encerrada.');
+    }
+};
+
+criarTabelaClientes();

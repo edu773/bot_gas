@@ -1,2 +1,11 @@
+# Dependências
 node_modules/
+
+# Variáveis de Ambiente
 .env
+
+# Sessão do WhatsApp (Crítico para segurança)
+auth_info_baileys/
+
+# Logs do NPM
+npm-debug.log*

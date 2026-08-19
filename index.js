@@ -1,19 +1,26 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, Browsers, delay } = require('@whiskeysockets/baileys');
+const { 
+    default: makeWASocket, 
+    useMultiFileAuthState, 
+    delay, 
+    fetchLatestWaWebVersion, 
+    DisconnectReason 
+} = require('@whiskeysockets/baileys');
+const { Boom } = require('@hapi/boom');
 const { Pool } = require('pg');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 
-// Configurações do Banco
+// Configuração do Banco de Dados
 const pool = new Pool({ 
-    connectionString: process.env.DATABASE_URL,
-    // Se usar Supabase/Render e der erro de SSL, descomente a linha abaixo:
-    // ssl: { rejectUnauthorized: false } 
+    connectionString: process.env.DATABASE_URL
 });
 
-// Constantes de Negócio (Estilo V7)
-const PRECO_GAS = 100;
-const PRECO_AGUA = 12;
+// Constantes de Negócio
+const CATALOGO = {
+    GAS: { nome: 'Gás 13Kg', preco: 100 },
+    AGUA: { nome: 'Água 20L', preco: 12 }
+};
 
 const STATES = {
     INICIO: 'INICIO',
@@ -27,22 +34,43 @@ const STATES = {
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
+    // Sincronização dinâmica de versão
+    const { version, isLatest } = await fetchLatestWaWebVersion();
+    console.log(`Versão do WA Web sincronizada: ${version.join('.')} (Última: ${isLatest})`);
+
     const sock = makeWASocket({
+        version,
         auth: state,
-        browser: Browsers.macOS('Desktop'),
-        logger: pino({ level: 'error' }),
-        printQRInTerminal: false // Gerenciamos o QR manualmente abaixo
+        browser: ['BotGas', 'Chrome', '1.0.0'],
+        logger: pino({ level: 'error' }), // Silencia ruídos de background
+        syncFullHistory: false // Desativa sync pesado de histórico inicial
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, qr } = update;
+        const { connection, lastDisconnect, qr } = update;
+        
         if (qr) {
-            console.log("📌 NOVO QR CODE GERADO:");
+            console.log("NOVO QR CODE GERADO. Escaneie com seu WhatsApp:");
             qrcode.generate(qr, { small: true });
         }
-        if (connection === 'open') console.log('✅ BOT V7 ONLINE E AGUARDANDO "MENU"');
+        
+        if (connection === 'close') {
+            const shouldReconnect = (lastDisconnect?.error instanceof Boom)
+                ? lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut
+                : true;
+            
+            console.log(`Conexão encerrada. Motivo: ${lastDisconnect?.error?.message || 'Desconhecido'}. Reconectando: ${shouldReconnect}`);
+            
+            if (shouldReconnect) {
+                setTimeout(() => connectToWhatsApp(), 3000);
+            } else {
+                console.log('Sessão encerrada definitivamente pelo usuário (Logged Out).');
+            }
+        } else if (connection === 'open') {
+            console.log('✅ SISTEMA OPERANTE. Aguardando interações...');
+        }
     });
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
@@ -55,7 +83,11 @@ async function connectToWhatsApp() {
 
         if (!texto) return;
 
-        await processarMensagem(sock, jid, nome, texto);
+        try {
+            await processarMensagem(sock, jid, nome, texto);
+        } catch (error) {
+            console.error(`Erro ao processar mensagem de ${jid}:`, error.message);
+        }
     });
 }
 
@@ -64,29 +96,27 @@ async function processarMensagem(sock, jid, nome, textoRaw) {
     let cliente = await getCliente(jid, nome);
     let faseAtual = cliente.fase_conversa;
 
-    // GATILHO ESTRITO: Só inicia se digitar exatamente "Menu"
     if (input === 'menu') {
         await updateFase(jid, STATES.INICIO);
         faseAtual = STATES.INICIO;
     }
 
-    // Se o cliente estiver no INICIO e não digitou Menu, o bot fica em silêncio
     if (faseAtual === STATES.INICIO && input !== 'menu') return;
 
-    // Simulação de Digitação para parecer humano (estilo V7)
     await sock.sendPresenceUpdate('composing', jid);
     await delay(1000);
 
     switch (faseAtual) {
         case STATES.INICIO:
             await sock.sendMessage(jid, { 
-                text: `Olá *${nome}*!\nO que você deseja pedir hoje?\n\n1. *Gás 13Kg*\n2. *Água 20L*` 
+                text: `Olá, ${nome}!\nO que você deseja pedir hoje?\n\n1. *${CATALOGO.GAS.nome}*\n2. *${CATALOGO.AGUA.nome}*` 
             });
             await updateFase(jid, STATES.ESCOLHENDO_PRODUTO);
             break;
 
         case STATES.ESCOLHENDO_PRODUTO:
-            const item = (input === '1' || input.includes('gas')) ? 'Gás 13Kg' : (input === '2' || input.includes('agua')) ? 'Água 20L' : null;
+            const item = (input === '1' || input.includes('gas')) ? CATALOGO.GAS.nome : 
+                         (input === '2' || input.includes('agua')) ? CATALOGO.AGUA.nome : null;
             
             if (item) {
                 await pool.query('UPDATE clientes SET ultimo_pedido_item = $1 WHERE telefone = $2', [item, jid]);
@@ -135,9 +165,9 @@ async function processarMensagem(sock, jid, nome, textoRaw) {
 }
 
 async function fluxoPagamento(sock, jid) {
-    const res = await pool.query('SELECT * FROM clientes WHERE telefone = $1', [jid]);
+    const res = await pool.query('SELECT ultimo_pedido_item, temp_quantidade FROM clientes WHERE telefone = $1', [jid]);
     const c = res.rows[0];
-    const valor = c.ultimo_pedido_item === 'Gás 13Kg' ? PRECO_GAS : PRECO_AGUA;
+    const valor = c.ultimo_pedido_item === CATALOGO.GAS.nome ? CATALOGO.GAS.preco : CATALOGO.AGUA.preco;
     const total = valor * c.temp_quantidade;
 
     await sock.sendMessage(jid, { 
@@ -149,14 +179,15 @@ async function fluxoPagamento(sock, jid) {
 async function finalizarPedido(sock, jid, metodo) {
     const res = await pool.query('SELECT * FROM clientes WHERE telefone = $1', [jid]);
     const c = res.rows[0];
+    const valor = c.ultimo_pedido_item === CATALOGO.GAS.nome ? CATALOGO.GAS.preco : CATALOGO.AGUA.preco;
     
-    const resumo = `✅ *PEDIDO RECEBIDO!*\n\n📦 *Item:* ${c.ultimo_pedido_item}\n🔢 *Qtd:* ${c.temp_quantidade}\n📍 *End:* ${c.endereco}\n💵 *Total:* R$ ${(c.ultimo_pedido_item === 'Gás 13Kg' ? PRECO_GAS : PRECO_AGUA) * c.temp_quantidade},00\n💳 *Pgto:* ${metodo}\n\nEntregaremos em breve! Digite *Menu* para um novo pedido.`;
+    const resumo = `✅ *PEDIDO RECEBIDO!*\n\n📦 *Item:* ${c.ultimo_pedido_item}\n🔢 *Qtd:* ${c.temp_quantidade}\n📍 *End:* ${c.endereco}\n💵 *Total:* R$ ${valor * c.temp_quantidade},00\n💳 *Pgto:* ${metodo}\n\nEntregaremos em breve! Digite *Menu* para um novo pedido.`;
     
     await sock.sendMessage(jid, { text: resumo });
     await updateFase(jid, STATES.INICIO);
 }
 
-// Funções de Banco (Helpers)
+// Interações com Banco de Dados
 async function getCliente(jid, nome) {
     const res = await pool.query('SELECT * FROM clientes WHERE telefone = $1', [jid]);
     if (res.rows.length === 0) {
@@ -170,4 +201,7 @@ async function updateFase(jid, fase) {
     await pool.query('UPDATE clientes SET fase_conversa = $1 WHERE telefone = $2', [fase, jid]);
 }
 
-connectToWhatsApp();
+connectToWhatsApp().catch(err => {
+    console.error("Falha crítica na inicialização:", err.message);
+    process.exit(1);
+});

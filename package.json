@@ -1,23 +1,18 @@
 {
-  "name": "bot-gas",
+  "name": "bot-gas-mvp",
   "version": "1.0.0",
-  "description": "",
+  "description": "API de automação para distribuidoras de gás focada em atendimento assíncrono via WhatsApp",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "db:setup": "node criar-tabela.js"
   },
-  "keywords": [],
-  "author": "",
+  "author": "Eduardo",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
-    "axios": "^1.13.5",
-    "body-parser": "^2.2.2",
-    "dotenv": "^17.3.0",
-    "express": "^5.2.1",
-    "pg": "^8.18.0",
-    "pino": "^10.3.1",
-    "qrcode-terminal": "^0.12.0"
+    "@whiskeysockets/baileys": "^6.7.0",
+    "dotenv": "^16.4.5",
+    "pg": "^8.11.5",
+    "pino": "^8.20.0"
   }
 }
